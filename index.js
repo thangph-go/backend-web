@@ -14,7 +14,7 @@ const thongkeRoutes = require('./routes/thongke.routes.js');
 
 // --- 2. KHỞI TẠO ỨNG DỤNG (APP) ---
 const app = express();
-const port = 8000; 
+const port = process.env.PORT || 8000;
 
 // --- 3. KÍCH HOẠT MIDDLEWARES ---
 app.use(cors());
@@ -37,5 +37,5 @@ app.get('/', (req, res) => {
 
 // --- 6. KHỞI ĐỘNG SERVER ---
 app.listen(port, () => {
-  console.log(`Server đang chạy tại http://localhost:${port}`);
+  console.log(`Server đang chạy tại cổng ${port}`);
 });
