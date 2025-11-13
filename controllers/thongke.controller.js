@@ -1,16 +1,26 @@
+/*
+ * File: thongke.controller.js
+ * Nhiệm vụ:
+ * 1. Xử lý tất cả logic nghiệp vụ cho các API Thống Kê (Reporting) (FR4).
+ * 2. Cung cấp dữ liệu cho Dashboard, Lịch sử học, và các Báo cáo.
+ */
+
 const pool = require('../config/db');
 
-// === 1. LẤY LỊCH SỬ HỌC TẬP (CẬP NHẬT) ===
+// === 1. LẤY LỊCH SỬ HỌC TẬP CỦA HỌC VIÊN (GET /api/thongke/lichsuhocvien/:ma_hv) ===
 exports.getStudentHistory = async (req, res) => {
   try {
+    // 1. Lấy mã học viên từ URL
     const { ma_hv } = req.params;
 
+    // 2. Chuẩn bị câu lệnh SQL (JOIN 2 bảng)
+    // Lấy thông tin đăng ký (dk) VÀ thông tin khóa học (kh)
     const sql = `
       SELECT 
         dk.ma_khoa_hoc,
         kh.ten_khoa,
         kh.thoi_gian_bat_dau,
-        kh.thoi_gian_ket_thuc, -- <-- THÊM DÒNG NÀY
+        kh.thoi_gian_ket_thuc,
         dk.ngay_dang_ky,
         dk.ket_qua
       FROM 
@@ -23,26 +33,28 @@ exports.getStudentHistory = async (req, res) => {
         kh.thoi_gian_bat_dau DESC
     `;
     
+    // 3. Thực thi
     const [results] = await pool.query(sql, [ma_hv]);
+    
+    // 4. Trả về kết quả (có thể là mảng rỗng)
     res.json(results);
+    
   } catch (err) {
     console.error('Lỗi khi truy vấn lịch sử học viên:', err);
     res.status(500).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
   }
 };
 
-
-// ... (Giữ nguyên hàm getStudentHistory ở trên) ...
-
-// === 2. THỐNG KÊ HỌC VIÊN THEO QUÊ QUÁN ===
+// === 2. THỐNG KÊ HỌC VIÊN THEO QUÊ QUÁN (GET /api/thongke/quequan) ===
 exports.getStatsByHometown = async (req, res) => {
   try {
-    /* * Câu lệnh SQL này:
-     * 1. JOIN HOC_VIEN (hv) với TINH_THANH (tt)
-     * 2. Chỉ lấy học viên CHƯA BỊ XÓA (hv.deleted_at IS NULL)
-     * 3. Nhóm (GROUP BY) các học viên theo mã tỉnh
-     * 4. Đếm (COUNT) số lượng trong mỗi nhóm và đặt tên là 'so_luong'
-     * 5. Lấy 'ten_tinh' để hiển thị
+    // 1. Chuẩn bị câu lệnh SQL
+    /*
+     * Logic:
+     * 1. JOIN HOC_VIEN (hv) với TINH_THANH (tt) để lấy Tên tỉnh.
+     * 2. Lọc (WHERE) các học viên đã bị "xóa mềm".
+     * 3. Nhóm (GROUP BY) theo Tên tỉnh và Mã tỉnh.
+     * 4. Đếm (COUNT) số lượng trong mỗi nhóm.
      */
     const sql = `
       SELECT 
@@ -61,7 +73,10 @@ exports.getStatsByHometown = async (req, res) => {
         so_luong DESC;
     `;
 
+    // 2. Thực thi
     const [results] = await pool.query(sql);
+    
+    // 3. Trả về kết quả
     res.json(results);
 
   } catch (err) {
@@ -70,27 +85,24 @@ exports.getStatsByHometown = async (req, res) => {
   }
 };
 
-
-// ... (Giữ nguyên các hàm thống kê khác) ...
-
-// === 3. THỐNG KÊ TÌNH HÌNH MỞ KHÓA HỌC (THEO NĂM) ===
+// === 3. THỐNG KÊ KHÓA HỌC THEO NĂM (GET /api/thongke/khoahoc) ===
 exports.getStatsByCourse = async (req, res) => {
   try {
-    // Lấy năm từ query string (ví dụ: /api/thongke/khoahoc?year=2025)
+    // 1. Lấy 'year' từ query string (vd: ?year=2025)
     const { year } = req.query;
 
-    // Bắt buộc người dùng phải cung cấp năm
     if (!year) {
       return res.status(400).json({ error: 'Thiếu tham số "year" (năm) trên URL' });
     }
 
+    // 2. Chuẩn bị câu lệnh SQL
     /*
-     * Câu lệnh SQL này:
+     * Logic:
      * 1. Dùng KHOA_HOC (kh) làm bảng chính.
-     * 2. LEFT JOIN với DANG_KY (dk) để đếm cả các khóa học có 0 học viên.
-     * 3. Lọc (WHERE) theo năm bắt đầu (YEAR(...)) và khóa học chưa bị xóa mềm.
+     * 2. LEFT JOIN với DANG_KY (dk) để giữ lại các khóa học dù có 0 học viên.
+     * 3. Lọc (WHERE) theo năm (dùng hàm YEAR()) và các khóa học chưa bị "xóa mềm".
      * 4. Nhóm (GROUP BY) theo từng khóa học.
-     * 5. Đếm (COUNT) tổng số lượt đăng ký (sẽ là 0 nếu không có ai).
+     * 5. Đếm (COUNT) tổng số học viên.
      * 6. Đếm có điều kiện (SUM(CASE...)) cho số lượng Đạt và Không Đạt.
      */
     const sql = `
@@ -114,7 +126,10 @@ exports.getStatsByCourse = async (req, res) => {
         kh.thoi_gian_bat_dau;
     `;
 
+    // 3. Thực thi
     const [results] = await pool.query(sql, [year]);
+    
+    // 4. Trả về kết quả
     res.json(results);
 
   } catch (err) {
@@ -123,13 +138,11 @@ exports.getStatsByCourse = async (req, res) => {
   }
 };
 
-// === 4. THỐNG KÊ HỌC VIÊN THEO TỈNH THƯỜNG TRÚ ===
+// === 4. THỐNG KÊ HỌC VIÊN THEO TỈNH THƯỜNG TRÚ (GET /api/thongke/thuongtru) ===
 exports.getStatsByThuongTru = async (req, res) => {
   try {
-    /*
-     * Câu lệnh SQL này y hệt thống kê quê quán,
-     * chỉ thay 'ma_tinh_que_quan' bằng 'ma_tinh_thuong_tru'
-     */
+    // 1. Chuẩn bị câu lệnh SQL
+    // (Logic y hệt Thống kê Quê quán, chỉ thay cột JOIN)
     const sql = `
       SELECT 
         hv.ma_tinh_thuong_tru,
@@ -147,7 +160,10 @@ exports.getStatsByThuongTru = async (req, res) => {
         so_luong DESC;
     `;
 
+    // 2. Thực thi
     const [results] = await pool.query(sql);
+    
+    // 3. Trả về kết quả
     res.json(results);
 
   } catch (err) {
@@ -156,26 +172,23 @@ exports.getStatsByThuongTru = async (req, res) => {
   }
 };
 
-// === 5. THỐNG KÊ TỔNG QUAN (CHO DASHBOARD) ===
+// === 5. THỐNG KÊ TỔNG QUAN (CHO DASHBOARD) (GET /api/thongke/dashboard) ===
 exports.getDashboardStats = async (req, res) => {
   try {
-    /*
-     * Câu lệnh SQL này chạy 3 truy vấn con (subquery)
-     * để đếm 3 chỉ số trong 1 lần gọi API
-     */
+    // 1. Chuẩn bị câu lệnh SQL
+    // (Dùng 3 truy vấn con (subquery) song song để lấy 3 chỉ số)
     const sql = `
       SELECT 
         (SELECT COUNT(*) FROM HOC_VIEN WHERE deleted_at IS NULL) AS totalHocVien,
         (SELECT COUNT(*) FROM KHOA_HOC WHERE deleted_at IS NULL) AS totalKhoaHoc,
         (SELECT COUNT(*) FROM DANG_KY) AS totalDangKy
     `;
-    
-    // (Lưu ý: Bảng DANG_KY không có deleted_at theo thiết kế của bạn)
+    // (Lưu ý: Bảng DANG_KY không có deleted_at)
 
+    // 2. Thực thi
     const [results] = await pool.query(sql);
     
-    // results sẽ là một mảng chỉ có 1 object: 
-    // [ { totalHocVien: 5, totalKhoaHoc: 3, totalDangKy: 7 } ]
+    // 3. Trả về 1 object duy nhất (ví dụ: { totalHocVien: 5, ... })
     res.json(results[0]); 
 
   } catch (err) {

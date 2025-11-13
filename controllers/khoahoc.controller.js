@@ -1,38 +1,57 @@
+/*
+ * File: khoahoc.controller.js
+ * Nhiệm vụ:
+ * 1. Xử lý tất cả logic nghiệp vụ (CRUD) cho module "Khóa Học".
+ * 2. Tương tác với CSDL (bảng KHOA_HOC).
+ */
+
 const pool = require('../config/db');
 
 /*
- * Chúng ta cũng sẽ áp dụng "Xóa Mềm" (Soft Delete) cho Khóa Học
- * Bạn cần chạy lệnh SQL này trong Workbench trước:
+ * LƯU Ý QUAN TRỌNG:
+ * Module này sử dụng "Xóa Mềm" (Soft Delete).
+ * Bạn cần chạy lệnh SQL này trong Workbench 1 lần trước khi sử dụng:
  *
  * ALTER TABLE KHOA_HOC
  * ADD COLUMN deleted_at TIMESTAMP NULL DEFAULT NULL;
  *
  */
 
-// === 1. LẤY DANH SÁCH (GET) ===
+// === 1. LẤY DANH SÁCH KHÓA HỌC (GET /api/khoahoc) ===
 exports.getAllKhoaHoc = async (req, res) => {
   try {
-    const [results] = await pool.query("SELECT * FROM KHOA_HOC WHERE deleted_at IS NULL");
+    // Chỉ lấy các khóa học chưa bị "xóa mềm"
+    const sql = "SELECT * FROM KHOA_HOC WHERE deleted_at IS NULL";
+    
+    const [results] = await pool.query(sql);
     res.json(results);
+    
   } catch (err) {
     console.error('Lỗi khi truy vấn danh sách khóa học:', err);
     res.status(500).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
   }
 };
 
-// === 2. LẤY MỘT KHÓA HỌC (GET BY ID) ===
+// === 2. LẤY CHI TIẾT MỘT KHÓA HỌC (GET /api/khoahoc/:ma_kh) ===
 exports.getKhoaHocById = async (req, res) => {
   try {
+    // 1. Lấy mã khóa học từ tham số URL
     const { ma_kh } = req.params;
+
+    // 2. Chuẩn bị câu lệnh SQL (Chỉ lấy khóa học chưa bị xóa)
     const sql = "SELECT * FROM KHOA_HOC WHERE ma_khoa_hoc = ? AND deleted_at IS NULL";
+    
+    // 3. Thực thi
     const [results] = await pool.query(sql, [ma_kh]);
 
+    // 4. Trả về kết quả
     if (results.length === 0) {
       return res.status(404).json({ error: 'Không tìm thấy khóa học' });
     }
-    res.json(results[0]);
+    res.json(results[0]); // Trả về 1 object duy nhất
+    
   } catch (err) {
-    console.error('Lỗi khi truy vấn khóa học:', err);
+    console.error('Lỗi khi truy vấn chi tiết khóa học:', err);
     res.status(500).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
   }
 };
@@ -46,8 +65,11 @@ exports.createNewKhoaHoc = async (req, res) => {
       return res.status(400).json({ error: 'Thiếu mã khóa học hoặc tên khóa học' });
     }
     
+    const final_bat_dau = thoi_gian_bat_dau;
+    const final_ket_thuc = thoi_gian_ket_thuc || null;
+    
     const sql = "INSERT INTO KHOA_HOC (ma_khoa_hoc, ten_khoa, noi_dung, thoi_gian_bat_dau, thoi_gian_ket_thuc) VALUES (?, ?, ?, ?, ?)";
-    const values = [ma_khoa_hoc, ten_khoa, noi_dung, thoi_gian_bat_dau, thoi_gian_ket_thuc];
+    const values = [ma_khoa_hoc, ten_khoa, noi_dung, final_bat_dau, final_ket_thuc];
 
     await pool.query(sql, values);
     res.status(201).json({ message: 'Thêm khóa học thành công', ma_khoa_hoc: ma_khoa_hoc });
@@ -71,8 +93,11 @@ exports.updateKhoaHoc = async (req, res) => {
       return res.status(400).json({ error: 'Tên khóa học là bắt buộc' });
     }
 
+    const final_bat_dau = thoi_gian_bat_dau;
+    const final_ket_thuc = thoi_gian_ket_thuc || null;
+
     const sql = "UPDATE KHOA_HOC SET ten_khoa = ?, noi_dung = ?, thoi_gian_bat_dau = ?, thoi_gian_ket_thuc = ? WHERE ma_khoa_hoc = ?";
-    const values = [ten_khoa, noi_dung, thoi_gian_bat_dau, thoi_gian_ket_thuc, ma_kh];
+    const values = [ten_khoa, noi_dung, final_bat_dau, final_ket_thuc, ma_kh];
 
     const [result] = await pool.query(sql, values);
 
@@ -87,17 +112,24 @@ exports.updateKhoaHoc = async (req, res) => {
   }
 };
 
-// === 5. XÓA MỀM (DELETE) ===
+// === 5. XÓA MỀM KHÓA HỌC (DELETE /api/khoahoc/:ma_kh) ===
 exports.deleteKhoaHoc = async (req, res) => {
   try {
+    // 1. Lấy mã khóa học từ URL
     const { ma_kh } = req.params;
+
+    // 2. Chuẩn bị câu lệnh (Không phải DELETE, mà là UPDATE)
     const sql = "UPDATE KHOA_HOC SET deleted_at = NOW() WHERE ma_khoa_hoc = ? AND deleted_at IS NULL";
     
+    // 3. Thực thi
     const [result] = await pool.query(sql, [ma_kh]);
 
+    // 4. Kiểm tra
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Không tìm thấy khóa học để xóa' });
     }
+    
+    // 5. Trả về 200 OK
     res.json({ message: 'Xóa khóa học thành công (soft delete)', ma_khoa_hoc: ma_kh });
 
   } catch (err) {

@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/auth.middleware');
 
 
 router.get('/khoahoc/:ma_kh', authMiddleware, dangkyController.getEnrollmentsByCourse);
+
 // POST /api/dangky/ (Đăng ký học viên)
 router.post('/', authMiddleware, dangkyController.registerStudentToCourse);
 
