@@ -1,10 +1,10 @@
 const mysql = require('mysql2');
 
 // Kiểm tra xem có biến DATABASE_URL (của Railway) không
-if (process.env.DATABASE_URL) {
+if (process.env.MYSQL_URL) {
   // Nếu có (đang chạy trên Railway), tạo pool từ DATABASE_URL
   console.log("Đang kết nối tới Railway Database...");
-  const pool = mysql.createPool(process.env.DATABASE_URL);
+  const pool = mysql.createPool(process.env.MYSQL_URL);
   module.exports = pool.promise();
 
 } else {
