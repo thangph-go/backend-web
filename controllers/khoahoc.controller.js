@@ -52,14 +52,14 @@ exports.createNewKhoaHoc = async (req, res) => {
   try {
     const { ma_khoa_hoc, ten_khoa, noi_dung, thoi_gian_bat_dau, thoi_gian_ket_thuc } = req.body;
     
-    if (!ma_khoa_hoc || !ten_khoa) {
-      return res.status(400).json({ error: 'Thiếu mã khóa học hoặc tên khóa học' });
+    if (!ma_khoa_hoc || !ten_khoa || !thoi_gian_bat_dau) {
+      return res.status(400).json({ error: 'Thiếu mã khóa học hoặc tên khóa học hoặc thời gian bắt đầu' });
     }
     
     const final_ket_thuc = thoi_gian_ket_thuc ? thoi_gian_ket_thuc : null;
     
     const sql = "INSERT INTO KHOA_HOC (ma_khoa_hoc, ten_khoa, noi_dung, thoi_gian_bat_dau, thoi_gian_ket_thuc) VALUES (?, ?, ?, ?, ?)";
-    const values = [ma_khoa_hoc, ten_khoa, noi_dung, final_bat_dau, final_ket_thuc];
+    const values = [ma_khoa_hoc, ten_khoa, noi_dung, thoi_gian_bat_dau, final_ket_thuc];
 
     await pool.query(sql, values);
     res.status(201).json({ message: 'Thêm khóa học thành công', ma_khoa_hoc: ma_khoa_hoc });
