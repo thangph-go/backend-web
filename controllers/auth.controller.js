@@ -10,6 +10,47 @@ const bcrypt = require('bcrypt'); // Thư viện để băm (hash) mật khẩu
 const jwt = require('jsonwebtoken'); // Thư viện để tạo/đọc JSON Web Token
 const SECRET_KEY = process.env.JWT_SECRET; // Tải khóa bí mật từ file .env
 
+
+// Hàm validate password
+exports.validatePassword = (password) => {
+  if (!password || password.length < 6) {
+    return 'Mật khẩu phải có ít nhất 6 ký tự';
+  }
+  if (!/\d/.test(password)) {
+    return 'Mật khẩu phải chứa ít nhất 1 số';
+  }
+  if (!/[a-zA-Z]/.test(password)) {
+    return 'Mật khẩu phải chứa ít nhất 1 chữ cái';
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'Mật khẩu phải chứa ít nhất 1 chữ in hoa';
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return 'Mật khẩu phải chứa ít nhất 1 ký tự đặc biệt';
+  }
+  if (/\s/.test(password)) {
+    return 'Mật khẩu không được chứa khoảng trắng';
+  }
+  if (password.length > 100) {
+    return 'Mật khẩu không được vượt quá 100 ký tự';
+  }
+  return null; // Không có lỗi
+};
+
+exports.validateUsername = (username) => {
+  if (!username || username.length < 3) {
+    return 'Tên đăng nhập phải có ít nhất 3 ký tự';
+  }
+  if (username.length > 100) {
+    return 'Tên đăng nhập không được vượt quá 100 ký tự';
+  }
+  if (/\s/.test(username)) {
+    return 'Tên đăng nhập không được chứa khoảng trắng';
+  }
+  return null;
+};
+
+
 // === 1. ĐĂNG KÝ TÀI KHOẢN (REGISTER) ===
 exports.register = async (req, res) => {
   try {
@@ -20,6 +61,15 @@ exports.register = async (req, res) => {
     // (Lưu ý: Bạn nên thêm kiểm tra 'vai_tro' có phải là 'ADMIN' hoặc 'STAFF' không)
     if (!ten_dang_nhap || !mat_khau || !vai_tro) {
       return res.status(400).json({ error: 'Thiếu thông tin đăng nhập, mật khẩu hoặc vai trò' });
+    }
+
+    const usernameError = validateUsername(ten_dang_nhap);
+    if (usernameError) {
+      return res.status(400).json({ error: usernameError });
+    }
+    const passwordError = validatePassword(mat_khau);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
     }
 
     // --- 3. Băm Mật Khẩu (Hashing) ---
