@@ -35,6 +35,8 @@ router.get(
   taikhoanController.getAllAccounts
 );
 
+router.post('/staff', authMiddleware, adminMiddleware, taikhoanController.createStaffAccount);
+
 // (Bạn có thể thêm các route khác như Xóa, Sửa tài khoản... ở đây,
 // và chúng cũng nên được bảo vệ bởi [authMiddleware, adminMiddleware])
 

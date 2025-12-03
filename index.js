@@ -29,13 +29,9 @@ app.use('/api/dangky', dangkyRoutes);
 app.use('/api/tinhthanh', tinhthanhRoutes);
 app.use('/api/thongke', thongkeRoutes);
 
-// --- 5. CÁC ROUTE CƠ BẢN (TEST/ROOT) ---
-// Route gốc (Health Check)
-// app.get('/', (req, res) => {
-//   res.send('Chào mừng đến với Backend!');
-// });
 
-// --- 6. KHỞI ĐỘNG SERVER ---
+
+// --- 5. KHỞI ĐỘNG SERVER ---
 app.listen(port, () => {
   console.log(`Server đang chạy tại cổng ${port}`);
 });

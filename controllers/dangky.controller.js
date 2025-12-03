@@ -1,122 +1,202 @@
 /*
- * File: dangky.controller.js
- * Nhiệm vụ:
- * 1. Xử lý logic nghiệp vụ "Ghi danh" (Tạo mới lượt đăng ký).
- * 2. Xử lý logic "Cập nhật kết quả" (Đạt/Không Đạt) (FR3).
- * 3. Xử lý logic "Lấy danh sách học viên" của một khóa học cụ thể.
+ * File: controllers/dangky.controller.js
  */
-
 const pool = require('../config/db');
 
-// === 1. GHI DANH HỌC VIÊN VÀO KHÓA HỌC (POST /api/dangky) ===
-// (Chức năng "Ghi danh")
+// ========================================
+// HELPER FUNCTIONS
+// ========================================
+
+/**
+ * Tính toán tiến độ học tập của học viên trong một khóa học
+ * @param {string} ma_hoc_vien - Mã học viên
+ * @param {string} ma_khoa_hoc - Mã khóa học
+ * @returns {Promise<{tong_so_bai: number, so_bai_da_hoan_thanh: number}>}
+ */
+const calculateCourseProgress = async (ma_hoc_vien, ma_khoa_hoc) => {
+  const sql = `
+    SELECT 
+      (SELECT COUNT(*) FROM NOI_DUNG_KHOA_HOC WHERE ma_khoa_hoc = ?) as tong_so_bai,
+      (SELECT COUNT(*) FROM KET_QUA_NOI_DUNG kq 
+       JOIN NOI_DUNG_KHOA_HOC nd ON kq.id_noi_dung = nd.id 
+       WHERE kq.ma_hoc_vien = ? 
+       AND nd.ma_khoa_hoc = ? 
+       AND kq.trang_thai = 'HOÀN THÀNH') as so_bai_da_hoan_thanh
+  `;
+  
+  const [result] = await pool.query(sql, [ma_khoa_hoc, ma_hoc_vien, ma_khoa_hoc]);
+  return result[0];
+};
+
+// ========================================
+// CONTROLLER FUNCTIONS
+// ========================================
+
+// === 1. GHI DANH HỌC VIÊN (POST /api/dangky) ===
 exports.registerStudentToCourse = async (req, res) => {
   try {
-    // 1. Lấy dữ liệu từ React (vd: { "ma_hoc_vien": "HV001", "ma_khoa_hoc": "WEB_CB" })
     const { ma_hoc_vien, ma_khoa_hoc } = req.body;
 
-    // 2. Kiểm tra dữ liệu đầu vào
     if (!ma_hoc_vien || !ma_khoa_hoc) {
-      return res.status(400).json({ error: 'Thiếu mã học viên hoặc mã khóa học' });
+      return res.status(400).json({ error: 'Thiếu thông tin đăng ký' });
     }
 
-    // 3. Chuẩn bị câu lệnh SQL
-    // (Tự động đặt ket_qua là 'CHUA CAP NHAT' và ngay_dang_ky là ngày hiện tại)
-    const sql = "INSERT INTO DANG_KY (ma_hoc_vien, ma_khoa_hoc, ngay_dang_ky, ket_qua) VALUES (?, ?, ?, 'CHUA CAP NHAT')";
-    const values = [ma_hoc_vien, ma_khoa_hoc, new Date()];
-
-    // 4. Thực thi
-    await pool.query(sql, values);
+    // Check: Khóa học phải có nội dung rồi mới cho đăng ký
+    const sqlCheckContent = "SELECT COUNT(*) as total FROM NOI_DUNG_KHOA_HOC WHERE ma_khoa_hoc = ?";
+    const [rows] = await pool.query(sqlCheckContent, [ma_khoa_hoc]);
     
-    // 5. Trả về 201 Created (Tạo thành công)
+    if (rows[0].total === 0) {
+      return res.status(400).json({ 
+        error: 'Khóa học này chưa có nội dung bài học, không thể đăng ký.' 
+      });
+    }
+
+    const sql = "INSERT INTO DANG_KY (ma_hoc_vien, ma_khoa_hoc, ngay_dang_ky, ket_qua) VALUES (?, ?, ?, 'CHƯA CẬP NHẬT')";
+    await pool.query(sql, [ma_hoc_vien, ma_khoa_hoc, new Date()]);
+    
     res.status(201).json({ message: 'Đăng ký học viên thành công' });
 
   } catch (err) {
-    // 6. Xử lý Lỗi
-    console.error('Lỗi khi đăng ký học viên:', err);
-    
-    // Lỗi 1: Đăng ký trùng (Khóa chính phức hợp đã tồn tại)
+    console.error('Lỗi đăng ký:', err);
     if (err.code === 'ER_DUP_ENTRY') {
-      return res.status(400).json({ error: 'Học viên này đã được đăng ký vào khóa học này rồi' });
+      return res.status(400).json({ error: 'Học viên đã đăng ký khóa này rồi' });
     }
-    // Lỗi 2: Mã HV hoặc Mã KH không tồn tại (Lỗi Khóa Ngoại)
-    if (err.code === 'ER_NO_REFERENCED_ROW_2') {
-      return res.status(404).json({ error: 'Mã học viên hoặc mã khóa học không tồn tại' });
-    }
-    // Lỗi chung
-    res.status(500).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
+    res.status(500).json({ error: 'Lỗi server' });
   }
 };
 
 // === 2. CẬP NHẬT KẾT QUẢ (PUT /api/dangky) ===
-// (Chức năng "Cấp chứng chỉ")
 exports.updateEnrollmentResult = async (req, res) => {
   try {
-    // 1. Lấy dữ liệu từ React (vd: { "ma_hoc_vien": "HV001", "ma_khoa_hoc": "WEB_CB", "ket_qua": "DAT" })
     const { ma_hoc_vien, ma_khoa_hoc, ket_qua } = req.body;
 
-    // 2. Kiểm tra dữ liệu 'ket_qua' có hợp lệ không
-    const validResults = ['DAT', 'KHONG DAT', 'CHUA CAP NHAT'];
+    const validResults = ['ĐẠT', 'KHÔNG ĐẠT', 'CHƯA CẬP NHẬT'];
     if (!ket_qua || !validResults.includes(ket_qua)) {
-      return res.status(400).json({ error: 'Giá trị kết quả không hợp lệ (chỉ chấp nhận: DAT, KHONG DAT, CHUA CAP NHAT)' });
+      return res.status(400).json({ error: 'Kết quả không hợp lệ' });
     }
 
-    // 3. Chuẩn bị câu lệnh SQL
-    // (Lưu ý: Bảng DANG_KY không dùng xóa mềm nên không cần check deleted_at)
     const sql = "UPDATE DANG_KY SET ket_qua = ? WHERE ma_hoc_vien = ? AND ma_khoa_hoc = ?";
-    const values = [ket_qua, ma_hoc_vien, ma_khoa_hoc];
+    const [result] = await pool.query(sql, [ket_qua, ma_hoc_vien, ma_khoa_hoc]);
 
-    // 4. Thực thi
-    const [result] = await pool.query(sql, values);
-
-    // 5. Kiểm tra xem có hàng nào được cập nhật không
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Không tìm thấy lượt đăng ký này để cập nhật' });
+      return res.status(404).json({ error: 'Không tìm thấy thông tin đăng ký' });
     }
     
-    // 6. Trả về 200 OK
-    res.json({ message: 'Cập nhật kết quả thành công' });
+    res.json({ message: 'Cập nhật kết quả chứng chỉ thành công' });
 
   } catch (err) {
-    // 7. Xử lý Lỗi
-    console.error('Lỗi khi cập nhật kết quả:', err);
-    res.status(500).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
+    console.error('Lỗi cập nhật kết quả:', err);
+    res.status(500).json({ error: 'Lỗi server' });
   }
 };
 
-// === 3. LẤY DANH SÁCH ĐĂNG KÝ CỦA MỘT KHÓA HỌC (GET /api/dangky/khoahoc/:ma_kh) ===
-// (Dùng cho trang "Cập nhật kết quả")
-exports.getEnrollmentsByCourse = async (req, res) => {
+// === 3. LẤY TẤT CẢ HỌC VIÊN CỦA KHÓA (Cho trang Chi tiết & Modal chấm công) ===
+exports.getAllEnrollmentsByCourse = async (req, res) => {
   try {
-    // 1. Lấy mã khóa học từ URL (vd: /api/dangky/khoahoc/WEB_CB)
     const { ma_kh } = req.params;
-
-    // 2. Chuẩn bị câu lệnh SQL (JOIN 2 bảng)
-    // Lấy thông tin đăng ký (dk) và JOIN với thông tin học viên (hv)
+    // Query đơn giản: Lấy danh sách đăng ký
     const sql = `
       SELECT 
         dk.ma_hoc_vien,
         hv.ho_ten,
-        dk.ket_qua
-      FROM 
-        DANG_KY AS dk
-      JOIN 
-        HOC_VIEN AS hv ON dk.ma_hoc_vien = hv.ma_hoc_vien
-      WHERE 
-        dk.ma_khoa_hoc = ? 
-        AND hv.deleted_at IS NULL
+        dk.ket_qua,
+        dk.ngay_dang_ky
+      FROM DANG_KY dk
+      JOIN HOC_VIEN hv ON dk.ma_hoc_vien = hv.ma_hoc_vien
+      WHERE dk.ma_khoa_hoc = ? 
+      AND hv.deleted_at IS NULL
     `;
-    // (Lọc các học viên đã bị 'xóa mềm' ra khỏi danh sách)
-
-    // 3. Thực thi
     const [results] = await pool.query(sql, [ma_kh]);
+    res.json(results);
+  } catch (err) {
+    console.error('Lỗi lấy danh sách học viên:', err);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+};
 
-    // 4. Trả về danh sách (có thể là mảng rỗng)
-    res.json(results); 
+// === 4. LẤY HỌC VIÊN ĐỦ ĐIỀU KIỆN (Cho trang Cấp chứng chỉ) ===
+exports.getEligibleStudents = async (req, res) => {
+  try {
+    const { ma_kh } = req.params;
+    
+    // Lấy danh sách tất cả học viên đăng ký
+    const sqlStudents = `
+      SELECT 
+        dk.ma_hoc_vien,
+        hv.ho_ten,
+        dk.ket_qua,
+        dk.ngay_dang_ky
+      FROM DANG_KY dk
+      JOIN HOC_VIEN hv ON dk.ma_hoc_vien = hv.ma_hoc_vien
+      WHERE dk.ma_khoa_hoc = ? 
+      AND hv.deleted_at IS NULL
+    `;
+    
+    const [students] = await pool.query(sqlStudents, [ma_kh]);
+    
+    // Lọc học viên đã hoàn thành 100% bài học
+    const eligibleStudents = [];
+    
+    for (const student of students) {
+      const progress = await calculateCourseProgress(student.ma_hoc_vien, ma_kh);
+      
+      // Chỉ lấy học viên đã học xong 100%
+      if (progress.tong_so_bai > 0 && progress.tong_so_bai === progress.so_bai_da_hoan_thanh) {
+        eligibleStudents.push({
+          ...student,
+          tong_so_bai: progress.tong_so_bai,
+          so_bai_da_hoan_thanh: progress.so_bai_da_hoan_thanh
+        });
+      }
+    }
+    
+    res.json(eligibleStudents);
+    
+  } catch (err) {
+    console.error('Lỗi lấy danh sách đủ điều kiện:', err);
+    res.status(500).json({ error: 'Lỗi server' });
+  }
+};
+
+// === 5. LẤY DANH SÁCH KHÓA HỌC CỦA MỘT HỌC VIÊN ===
+// GET /api/dangky/hocvien/:ma_hv
+exports.getCoursesByStudent = async (req, res) => {
+  try {
+    const { ma_hv } = req.params;
+
+    // Lấy danh sách khóa học
+    const sql = `
+      SELECT 
+        kh.ma_khoa_hoc,
+        kh.ten_khoa,
+        kh.thoi_gian_bat_dau,
+        kh.thoi_gian_ket_thuc,
+        dk.ngay_dang_ky,
+        dk.ket_qua
+      FROM DANG_KY dk
+      JOIN KHOA_HOC kh ON dk.ma_khoa_hoc = kh.ma_khoa_hoc
+      WHERE dk.ma_hoc_vien = ?
+      ORDER BY dk.ngay_dang_ky DESC
+    `;
+
+    const [courses] = await pool.query(sql, [ma_hv]);
+    
+    // Thêm thông tin tiến độ cho mỗi khóa học
+    const coursesWithProgress = await Promise.all(
+      courses.map(async (course) => {
+        const progress = await calculateCourseProgress(ma_hv, course.ma_khoa_hoc);
+        return {
+          ...course,
+          so_bai_da_hoan_thanh: progress.so_bai_da_hoan_thanh,
+          tong_so_bai: progress.tong_so_bai
+        };
+      })
+    );
+    
+    res.json(coursesWithProgress);
 
   } catch (err) {
-    // 5. Xử lý Lỗi
-    console.error('Lỗi khi truy vấn danh sách đăng ký:', err);
-    res.status(500).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
+    console.error('Lỗi lấy lịch sử học tập:', err);
+    res.status(500).json({ error: 'Lỗi server: ' + err.message });
   }
 };

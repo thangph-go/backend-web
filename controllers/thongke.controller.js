@@ -111,8 +111,8 @@ exports.getStatsByCourse = async (req, res) => {
         kh.ten_khoa,
         kh.thoi_gian_bat_dau,
         COUNT(dk.ma_hoc_vien) AS so_luong_hoc_vien,
-        SUM(CASE WHEN dk.ket_qua = 'DAT' THEN 1 ELSE 0 END) AS so_luong_dat,
-        SUM(CASE WHEN dk.ket_qua = 'KHONG DAT' THEN 1 ELSE 0 END) AS so_luong_khong_dat
+        SUM(CASE WHEN dk.ket_qua = 'ĐẠT' THEN 1 ELSE 0 END) AS so_luong_dat,
+        SUM(CASE WHEN dk.ket_qua = 'KHÔNG ĐẠT' THEN 1 ELSE 0 END) AS so_luong_khong_dat
       FROM 
         KHOA_HOC AS kh
       LEFT JOIN 
