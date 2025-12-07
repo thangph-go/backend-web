@@ -16,9 +16,26 @@ const thongkeRoutes = require('./routes/thongke.routes.js');
 const app = express();
 const port = process.env.PORT || 8000;
 
-// --- 3. KÍCH HOẠT MIDDLEWARES ---
-app.use(cors());
-app.use(express.json()); 
+// --- 3. KÍCH HOẠT MIDDLEWARES (ĐÃ SỬA ĐỔI) ---
+
+// Lấy danh sách từ .env và tách chuỗi thành mảng dựa trên dấu phẩy
+// Nếu không có biến này thì mặc định là mảng rỗng []
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Cho phép request từ Postman/Mobile App (không có origin) hoặc request nằm trong whitelist
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Lỗi CORS: Domain này không được phép truy cập.'));
+    }
+  }
+};
+
+// Áp dụng config
+app.use(cors(corsOptions));
+app.use(express.json());
 
 // --- 4. KẾT NỐI (CẮM) CÁC API ROUTES ---
 app.use('/api/auth', authRoutes);
