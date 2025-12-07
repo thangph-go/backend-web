@@ -23,12 +23,14 @@ const port = process.env.PORT || 8000;
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Cho phép request từ Postman/Mobile App (không có origin) hoặc request nằm trong whitelist
+  origin: (origin, callback) => {
+    // In ra xem ai đang gọi cửa
+    console.log("Request from origin:", origin); 
+
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Lỗi CORS: Domain này không được phép truy cập.'));
+      callback(new Error('Bị chặn bởi CORS'));
     }
   }
 };
