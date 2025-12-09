@@ -138,7 +138,7 @@ exports.addNoiDungKhoaHoc = async (req, res) => {
     }
 
     const sql = "INSERT INTO NOI_DUNG_KHOA_HOC (ma_khoa_hoc, ten_noi_dung, mo_ta, thu_tu) VALUES (?, ?, ?, ?)";
-    await pool.query(sql, [ma_kh, ten_noi_dung, mo_ta, thu_tu || 0]);
+    await pool.query(sql, [ma_kh, ten_noi_dung, mo_ta, thu_tu]);
 
     res.status(201).json({ message: 'Thêm nội dung thành công' });
   } catch (err) {

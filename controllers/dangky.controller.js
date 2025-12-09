@@ -120,7 +120,7 @@ exports.getEligibleStudents = async (req, res) => {
     const { ma_kh } = req.params;
     
     // Lấy danh sách tất cả học viên đăng ký
-    const sqlStudents = `
+    const sql = `
       SELECT 
         dk.ma_hoc_vien,
         hv.ho_ten,
@@ -132,23 +132,25 @@ exports.getEligibleStudents = async (req, res) => {
       AND hv.deleted_at IS NULL
     `;
     
-    const [students] = await pool.query(sqlStudents, [ma_kh]);
+    const [students] = await pool.query(sql, [ma_kh]);
     
     // Lọc học viên đã hoàn thành 100% bài học
-    const eligibleStudents = [];
-    
-    for (const student of students) {
-      const progress = await calculateCourseProgress(student.ma_hoc_vien, ma_kh);
-      
-      // Chỉ lấy học viên đã học xong 100%
-      if (progress.tong_so_bai > 0 && progress.tong_so_bai === progress.so_bai_da_hoan_thanh) {
-        eligibleStudents.push({
-          ...student,
-          tong_so_bai: progress.tong_so_bai,
-          so_bai_da_hoan_thanh: progress.so_bai_da_hoan_thanh
-        });
-      }
-    }
+    const studentsWithProgress = await Promise.all(
+        students.map(async (student) => {
+            const progress = await calculateCourseProgress(student.ma_hoc_vien, ma_kh);
+
+            return {
+                ...student,
+                tong_so_bai: progress.tong_so_bai,
+                so_bai_da_hoan_thanh: progress.so_bai_da_hoan_thanh
+            };
+        })
+    );
+
+    const eligibleStudents = studentsWithProgress.filter(student => 
+        student.tong_so_bai > 0 && 
+        student.tong_so_bai === student.so_bai_da_hoan_thanh
+    );
     
     res.json(eligibleStudents);
     

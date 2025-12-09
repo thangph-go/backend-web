@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mysql = require('mysql2');
 
 // Kiểm tra xem có biến DATABASE_URL (của Railway) không
@@ -11,10 +12,11 @@ if (process.env.MYSQL_URL) {
   // Nếu không (đang chạy ở local), dùng thông tin local
   console.log("Đang kết nối tới Local Database...");
   const pool = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: '123456',
-    database: 'quan_ly_trung_tam'
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    port: process.env.DB_PORT,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
   });
   module.exports = pool.promise();
 }
