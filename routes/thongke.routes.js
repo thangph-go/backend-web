@@ -13,6 +13,7 @@ router.get('/lichsuhocvien/:ma_hv', authMiddleware, thongkeController.getStudent
 // GET /api/thongke/quequan
 router.get('/quequan', authMiddleware, thongkeController.getStatsByHometown);
 
+// GET /api/thongke/thuongtru
 router.get('/thuongtru', authMiddleware, thongkeController.getStatsByThuongTru);
 
 // GET /api/thongke/khoahoc
